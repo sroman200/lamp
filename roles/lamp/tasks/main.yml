@@ -1,0 +1,43 @@
+---
+# tasks file for yum-config
+
+- name: Copy files
+  copy:
+    src: "{{ role_path }}/files"
+    dest: /tmp/test
+    #mode: 0644
+    remote_src: yes 
+    directory_mode: yes
+  tags:
+    - copy 
+
+# use files parameter to use multiple docker-compose.yml files
+- name: deploy Docker Compose stack
+  docker_compose:
+    project_src: /tmp/test/files
+    project_name: "{{ project_name }}"
+    build: yes
+    files:
+    - docker-compose.yml
+
+- name: "wait apache start"
+  uri:
+    url: "http://{{ ansible_host }}:8080"
+    status_code: 200
+  register: result
+  until: result.status == 200
+  retries: 60
+  delay: 1
+
+
+#import dump.sql
+- name: deploy db mysql
+  shell: 
+    cmd: docker exec -i {{ project_name }}_mysql_1 mysql -uroot -p123456 test < dump.sql
+    chdir: /tmp/test/files
+  register: result
+  until: result.rc == 0
+  retries: 60
+  delay: 5
+  tags:
+  - dump
